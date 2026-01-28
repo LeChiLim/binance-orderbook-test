@@ -22,7 +22,7 @@ logging.info(f"Order Book for {TRADE_SYMBOL}:")
 # ===== WebSocket Updates ====== #
 
 #FIFO Queue
-updates_buffer = Queue()
+updates_buffer = Queue(maxsize=10000)
 
 async def listen_to_depth():
     async with websockets.connect(WS_URL) as ws:
@@ -59,7 +59,7 @@ class OrderBook:
         self.bids = {}  # price: quantity
         self.asks = {}  # price: quantity
 
-    def initialize_order_book(self, data):
+    def initialize_order_book(self):
         data = get_orderbook_rest(self.symbol, self.levels)
         print(data)
         for bid in data['bids']:
@@ -97,5 +97,11 @@ class OrderBook:
 
 if __name__ == "__main__":
     ob = OrderBook(TRADE_SYMBOL)
-    ob.initialize_order_book(data)
-    ob.print_order_book()
+    ob.initialize_order_book()
+    #ob.print_order_book()
+    
+    #start WS Listener
+
+    #start processing updates
+
+    
