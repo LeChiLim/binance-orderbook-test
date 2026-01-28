@@ -4,11 +4,12 @@ from queue import Queue
 import asyncio
 import websockets
 import json
+import time
 
 # === Configuration === #
-TRADE_SYMBOL = "nearusdt"
+TRADE_SYMBOL = "btcusdt"
 LEVELS = 500
-REST_URL = f"https://fapi.binance.com/fapi/v1/depth?symbol={TRADE_SYMBOL}&limit=10"
+REST_URL = f"https://fapi.binance.com/fapi/v1/depth?symbol={TRADE_SYMBOL}&limit={LEVELS}"
 WS_URL = f"wss://fstream.binance.com/ws/{TRADE_SYMBOL}@depth@100ms"
 
 
@@ -69,15 +70,6 @@ class OrderBook:
             price, qty = ask
             self.asks[price] = qty
 
-    def print_order_book(self):
-        logging.info(f"Order Book for {self.symbol}:")
-        for i in range(self.levels):
-            bid_price = list(self.bids.keys())[i]
-            bid_qty = self.bids[bid_price]
-            ask_price = list(self.asks.keys())[i]
-            ask_qty = self.asks[ask_price]
-            logging.info(f"Level {i+1}: Bid: {bid_price} ({bid_qty}) | Ask: {ask_price} ({ask_qty})")
-
     async def get_updates(self):
         while True:
             if not updates_buffer.empty():
@@ -95,13 +87,65 @@ class OrderBook:
             price, qty = ask
             self.asks[price] = qty
 
+    def print_order_book(self):
+        logging.info(f"Order Book for {self.symbol}:")
+        for i in range(self.levels):
+            bid_price = list(self.bids.keys())[i]
+            bid_qty = self.bids[bid_price]
+            ask_price = list(self.asks.keys())[i]
+            ask_qty = self.asks[ask_price]
+            logging.info(f"Level {i+1}: Bid: {bid_price} ({bid_qty}) | Ask: {ask_price} ({ask_qty})")
+
+    #print price level of 1,5,10 + mid price + spreads
+    def print_order_book_header(self):
+        #PRINT_HEADER = ("{:<23} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}")
+        print("{:<23} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}".format("EventTime", "Spread_L1", "Spread_L5", "Spread_L10", "Bid_L1", "Ask_L1", "Mid_L1"))
+        
+    def print_order_book_levels(self):
+        # from the assesment
+        #PRINT_ROW = ("{:<23} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f}")
+        #things to print: Spread_L1, Spread_L5, Spread_L10, Bid_L1, Ask_L1, Mid_L1
+        #print("{:<23} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12} | {:<12}".format("EventTime", "Spread_L1", "Spread_L5", "Spread_L10", "Bid_L1", "Ask_L1", "Mid_L1"))
+        
+        levels_to_print = [1, 5, 10]
+        mid_prices = [0.0] * max(levels_to_print)  
+        spreads = [0.0] * max(levels_to_print)
+
+        bid_prices = sorted([float(price) for price in self.bids.keys()], reverse=True)
+        ask_prices = sorted([float(price) for price in self.asks.keys()])
+
+    
+        for l in levels_to_print:
+            # in reality, levels start from 0 index
+            l -= 1
+            mid_price = (bid_prices[l] + ask_prices[l]) / 2
+            mid_prices[l] = mid_price
+            spread = (ask_prices[l] - bid_prices[l]) / mid_price
+            spreads[l] = spread
+        
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] 
+        print("{:<23} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f}".format(
+            time_str,
+            spreads[0], spreads[4], spreads[9],
+            bid_prices[0], ask_prices[0], mid_prices[0]
+        ))
+
+
 if __name__ == "__main__":
     ob = OrderBook(TRADE_SYMBOL)
     ob.initialize_order_book()
     #ob.print_order_book()
     
     #start WS Listener
+    loop = asyncio.get_event_loop()
+    loop.create_task(listen_to_depth())
+    loop.create_task(ob.get_updates())
+    
+    #print order book levels every 1 ms
+    ob.print_order_book_header()
+    while True:
+        ob.print_order_book_levels()
+        time.sleep(0.001)
 
     #start processing updates
 
-    
