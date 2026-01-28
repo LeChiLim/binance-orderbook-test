@@ -27,7 +27,7 @@ updates_buffer = Queue(maxsize=10000)
 
 async def listen_to_depth():
     async with websockets.connect(WS_URL) as ws:
-        logging.info(f"Connected to {WS_URL}")
+        logging.debug(f"Connected to {WS_URL}")
         
         while True:
             try:

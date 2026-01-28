@@ -5,6 +5,19 @@ Programmed on WS- Ubuntu 24.02
 
 Create venv, install from requirements.txt
 
+# HOW TO USE
+python3 orderbook.py
+
+SEPERATED INTO
+- orderbook class
+- REST API functions
+- WSS update functions
+
+FUTURE IMPROVMENET 
+- update into seperate files and run async
+
+# NOTES FROM BEFORE
+
 Things to do:
 1. Create local orderbook
 2. Use REST once to initialize
