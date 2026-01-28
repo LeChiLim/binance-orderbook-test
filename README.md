@@ -16,6 +16,8 @@ SEPERATED INTO
 FUTURE IMPROVMENET 
 - update into seperate files and run async
 
+PLEASE IGNORE LISTENER.py
+
 # NOTES FROM BEFORE
 
 Things to do:

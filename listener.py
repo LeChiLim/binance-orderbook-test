@@ -41,4 +41,5 @@ async def listen_to_depth():
                 logging.error(f"Error in loop: {e}")
                 break
 
-asyncio.run(listen_to_depth())
+if __name__ == "__main__":
+    asyncio.run(listen_to_depth())
