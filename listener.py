@@ -17,10 +17,18 @@ def get_all_symbols():
     response = client.rest_api.exchange_info()
     data = response.data()
 
-    usdt_symbols = [symbol for symbol in data.symbols if symbol.quote_asset == "USDT"]
-    usdt_trading_symbols = [symbol for symbol in usdt_symbols if symbol.status == "TRADING"]
-    return usdt_trading_symbols
+    all_symbols = [symbol_info['symbol'] for symbol_info in data.symbols]
+    #usdt_symbols = [symbol for symbol in data.symbols if symbol.quote_asset == "USDT"]
+    #usdt_trading_symbols = [symbol for symbol in usdt_symbols if symbol.status == "TRADING"]
+    return all_symbols
 
 def get_url(symbol):
+    #all_trading_symbols = get_all_symbols()
+    #if symbol not in all_trading_symbols:
+    #    raise ValueError("Symbol not found in trading symbols")
     return URL.replace("<symbol>", symbol)
+
+#print(get_all_symbols())
+print("=========================")
+print(get_url("BTCUSDT"))
 
