@@ -7,13 +7,20 @@ import websockets
 import json
 #from binance_sdk_spot.spot import Spot, ConfigurationWebSocketStreams, Spot, SPOT_WS_STREAMS_PROD_URL
 import logging
+from queue import Queue
 
 #== CONFIGURATION ==#
 TRADE_SYMBOL = "nearusdt"
-WS_URL = f"wss://fstream.binance.com/ws/{TRADE_SYMBOL}@depth10@100ms"
+WS_URL = f"wss://fstream.binance.com/ws/{TRADE_SYMBOL}@depth@100ms"
 
 logging.basicConfig(level=logging.INFO)
 
+#this is the buffer that will hold the order book updates
+#FIFO Queue
+updates_buffer = Queue()
+
+# listen to depth updates
+# add all to a buffer
 async def listen_to_depth():
     async with websockets.connect(WS_URL) as ws:
         logging.info(f"Connected to {WS_URL}")
@@ -25,7 +32,8 @@ async def listen_to_depth():
                 
                 if 'e' in data and data['e'] == 'depthUpdate':
                     logging.info(f"Depth Update:\n{json.dumps(data, indent=2)}")
-                    # Apply to your local book here
+                    # put into updates buffer
+                    updates_buffer.put(data)
                 else:
                     logging.info(f"Other message: {data}")
                     
