@@ -7,7 +7,7 @@ import json
 import time
 
 # === Configuration === #
-TRADE_SYMBOL = "btcusdt"
+TRADE_SYMBOL = "nearusdt"
 LEVELS = 500
 REST_URL = f"https://fapi.binance.com/fapi/v1/depth?symbol={TRADE_SYMBOL}&limit={LEVELS}"
 WS_URL = f"wss://fstream.binance.com/ws/{TRADE_SYMBOL}@depth@100ms"
@@ -35,7 +35,7 @@ async def listen_to_depth():
                 data = json.loads(message)
                 
                 if 'e' in data and data['e'] == 'depthUpdate':
-                    logging.info(f"Depth Update:\n{json.dumps(data, indent=2)}")
+                    #logging.info(f"Depth Update:\n{json.dumps(data, indent=2)}")
                     # put into updates buffer
                     updates_buffer.put(data)
                 else:
@@ -59,33 +59,48 @@ class OrderBook:
         self.levels = LEVELS
         self.bids = {}  # price: quantity
         self.asks = {}  # price: quantity
+        self.last_update_id = 0
 
     def initialize_order_book(self):
         data = get_orderbook_rest(self.symbol, self.levels)
-        print(data)
+        self.last_update_id = data['lastUpdateId']
+        #print(data)
         for bid in data['bids']:
-            price, qty = bid
-            self.bids[price] = qty
+            price, qty = float(bid[0]), float(bid[1]) 
+            if qty > 0:  
+                self.bids[price] = qty
         for ask in data['asks']:
-            price, qty = ask
-            self.asks[price] = qty
+            price, qty = float(ask[0]), float(ask[1])
+            if qty > 0:
+                self.asks[price] = qty
 
     async def get_updates(self):
         while True:
             if not updates_buffer.empty():
                 update = updates_buffer.get()
                 # Process the update (e.g., apply to local order book)
-                logging.info(f"Processing update: {json.dumps(update, indent=2)}")
+                #logging.info(f"Processing update: {json.dumps(update, indent=2)}")
                 self.set_update(update)
             await asyncio.sleep(0.01)  # Small delay to prevent busy waiting
 
     def set_update(self, update_data):
-        for bid in update_data['bids']:
-            price, qty = bid
-            self.bids[price] = qty
-        for ask in update_data['asks']:
-            price, qty = ask
-            self.asks[price] = qty
+        #incorporate the update into the order book
+        #future: add ID checks
+        for price_str, qty_str in update_data['b']:
+            price, qty = float(price_str), float(qty_str)
+            if qty == 0:
+                self.bids.pop(price, None) 
+            else:
+                self.bids[price] = qty
+                
+        for price_str, qty_str in update_data['a']:
+            price, qty = float(price_str), float(qty_str)
+            if qty == 0:
+                self.asks.pop(price, None) 
+            else:
+                self.asks[price] = qty
+        #after every update, print the order book levels
+        self.print_order_book_levels()
 
     def print_order_book(self):
         logging.info(f"Order Book for {self.symbol}:")
@@ -123,29 +138,29 @@ class OrderBook:
             spread = (ask_prices[l] - bid_prices[l]) / mid_price
             spreads[l] = spread
         
-        time_str = time.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] 
+        utc8_time = time.strftime("%Y-%m-%d %H:%M:%S.%f", time.gmtime(time.time() + 8*3600))[:-3]
         print("{:<23} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f} | {:<12.8f}".format(
-            time_str,
+            utc8_time,
             spreads[0], spreads[4], spreads[9],
             bid_prices[0], ask_prices[0], mid_prices[0]
         ))
 
 
-if __name__ == "__main__":
+async def main():
     ob = OrderBook(TRADE_SYMBOL)
     ob.initialize_order_book()
-    #ob.print_order_book()
-    
-    #start WS Listener
-    loop = asyncio.get_event_loop()
-    loop.create_task(listen_to_depth())
-    loop.create_task(ob.get_updates())
-    
-    #print order book levels every 1 ms
+
+    # start WS listener and updater
+    listener_task = asyncio.create_task(listen_to_depth())
+    updates_task = asyncio.create_task(ob.get_updates())
+
     ob.print_order_book_header()
-    while True:
-        ob.print_order_book_levels()
-        time.sleep(0.001)
 
-    #start processing updates
+    # keep running; printing happens inside set_update()
+    try:
+        await asyncio.gather(listener_task, updates_task)
+    except asyncio.CancelledError:
+        pass
 
+if __name__ == "__main__":
+    asyncio.run(main())
