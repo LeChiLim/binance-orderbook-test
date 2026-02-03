@@ -33,3 +33,7 @@ https://www.binance.com/en/academy/articles/local-order-book-tutorial-part-1-dep
 orderbook.py:
 How to get orderbook by REST API
 https://stackoverflow.com/questions/69800961/how-to-get-the-order-book-list-with-binance-api
+
+
+#How to maintain an orderbook according to Binance
+https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/How-to-manage-a-local-order-book-correctly
