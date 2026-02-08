@@ -37,3 +37,11 @@ https://stackoverflow.com/questions/69800961/how-to-get-the-order-book-list-with
 
 #How to maintain an orderbook according to Binance
 https://developers.binance.com/docs/derivatives/usds-margined-futures/websocket-market-streams/How-to-manage-a-local-order-book-correctly
+
+
+# NOTES POST-ASSESSMENT
+I've added the following based on the recommended guide above
+- Drop any event where u is < lastUpdateId in the snapshot.
+- The first processed event should have U <= ``lastUpdateId AND u >= ``lastUpdateId
+- While listening to the stream, each new event's pu should be equal to the previous event's u, otherwise initialize the process from step 3.ß
+- If the quantity is 0, remove the price level.

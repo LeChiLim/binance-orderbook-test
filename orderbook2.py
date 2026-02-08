@@ -6,6 +6,30 @@ import websockets
 import json
 import time
 
+""""
+Previous method:
+Use REST API to get initial order book snapshot
+then use WebSocket to get incremental updates.
+
+New method:
+Same thing but
+Drop any event where u < lastUpdateId in the snapshot
+First processed event should be U <= lastUpdateId and u >= lastUpdateId
+While listening to the stream, each new event's pu should be equl to 
+previous event's u, other wise initlized process from REST API again
+The data in each event is the absolute quantity for a price level
+If the quantity is 0, remove the price level 
+Receiving an event that removes a price level that is not in your local order book can happen and is normal.
+
+Each event you receieve this:
+"U": 9860901332824,
+"u": 9860901339872,
+"pu": 9860901328070,
+
+"""
+
+
+
 # === Configuration === #
 TRADE_SYMBOL = "nearusdt"
 LEVELS = 500
@@ -25,7 +49,7 @@ logging.info(f"Order Book for {TRADE_SYMBOL}:")
 #FIFO Queue
 updates_buffer = Queue(maxsize=10000)
 
-async def listen_to_depth():
+async def listen_to_depth(ob):
     async with websockets.connect(WS_URL) as ws:
         logging.debug(f"Connected to {WS_URL}")
         
@@ -37,6 +61,12 @@ async def listen_to_depth():
                 if 'e' in data and data['e'] == 'depthUpdate':
                     #logging.info(f"Depth Update:\n{json.dumps(data, indent=2)}")
                     # put into updates buffer
+
+                    #part 2 addition: check if u < lastUpdateId, if so, skip
+                    if data['u'] < ob.last_update_id:
+                        logging.info(f"Skipping event with u={data['u']} < lastUpdateId={ob.last_update_id}")
+                        continue
+
                     updates_buffer.put(data)
                 else:
                     logging.info(f"Other message: {data}")
@@ -60,6 +90,13 @@ class OrderBook:
         self.bids = {}  # price: quantity
         self.asks = {}  # price: quantity
         self.last_update_id = 0
+
+    # part 2 addition
+    def reset_order_book(self):
+        self.bids.clear()
+        self.asks.clear()
+        self.last_update_id = 0
+        self.initialize_order_book()
 
     def initialize_order_book(self):
         data = get_orderbook_rest(self.symbol, self.levels)
@@ -86,6 +123,12 @@ class OrderBook:
     def set_update(self, update_data):
         #incorporate the update into the order book
         #future: add ID checks
+
+        #part 2 addition: check if pu != last_update_id, if so, reset order book and reinitialize
+        if update_data['pu'] != self.last_update_id:
+            logging.warning(f"Its too old event with pu={update_data['pu']} != last_update_id={self.last_update_id}. Resetting order book.")
+            self.reset_order_book()
+
         for price_str, qty_str in update_data['b']:
             price, qty = float(price_str), float(qty_str)
             if qty == 0:
@@ -99,6 +142,10 @@ class OrderBook:
                 self.asks.pop(price, None) 
             else:
                 self.asks[price] = qty
+
+        #part 2 addition: set last_update_id to u of the update
+        self.last_update_id = update_data['u']
+
         #after every update, print the order book levels
         self.print_order_book_levels()
 
@@ -151,7 +198,7 @@ async def main():
     ob.initialize_order_book()
 
     # start WS listener and updater
-    listener_task = asyncio.create_task(listen_to_depth())
+    listener_task = asyncio.create_task(listen_to_depth(ob))
     updates_task = asyncio.create_task(ob.get_updates())
 
     ob.print_order_book_header()
